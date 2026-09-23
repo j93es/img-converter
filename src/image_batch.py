@@ -3,9 +3,11 @@ from typing import List, Union
 
 from PIL import Image
 
-from image_converter import convert_to_jpg, convert_to_png
-from image_metadata import strip_all_metadata_keep_lens_only
-from image_watermark import add_watermark, get_watermark_style
+from src.image_converter import convert_to_rgba
+from src.image_metadata import get_striped_metadata_remain_camera
+from src.image_watermark import add_watermark, get_watermark_style
+
+DST_SUFFIX = "webp"
 
 
 def list_image_files(folder_path: Union[str, Path], extensions=None) -> List[Path]:
@@ -26,40 +28,35 @@ def list_image_files(folder_path: Union[str, Path], extensions=None) -> List[Pat
     return files
 
 
-def process_image(image_path, output_path=None, convert_jpg=False, max_size=660, watermark_text=None, keep_lens_only=False):
+def process_image(image_path, output_path=None, max_size=1200, watermark_text=None, strip_meta=False):
     input_path = Path(image_path)
     if not input_path.exists():
         raise FileNotFoundError(f"이미지 파일을 찾을 수 없습니다: {input_path}")
     if not input_path.is_file():
         raise ValueError(f"이미지 경로가 아닙니다: {input_path}")
 
-    output_file = Path(output_path) if output_path else input_path.with_name(f"processed{input_path.suffix}")
+    output_file = Path(output_path) if output_path else input_path.with_name(f"processed.rgba")
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     with Image.open(input_path) as source_image:
         working = source_image.copy()
-        working = convert_to_png(working, max_size=max_size)
-
-        if keep_lens_only:
-            working = strip_all_metadata_keep_lens_only(working)
+        working = convert_to_rgba(working, max_size=max_size)
 
         if watermark_text:
             font_size, margin = get_watermark_style(max_size)
             working = add_watermark(working, watermark_text, font_size=font_size, margin=margin)
 
-            if output_file.suffix.lower() in {".jpg", ".jpeg"}:
-                output_file = output_file.with_suffix(".png")
-
-        if convert_jpg and not watermark_text:
-            working = convert_to_jpg(working, max_size=max_size)
+        meta_data = source_image.getexif().tobytes()
+        if strip_meta:
+            meta_data = get_striped_metadata_remain_camera(working)
 
         output_file.parent.mkdir(parents=True, exist_ok=True)
-        working.save(output_file)
+        working.save(output_file, DST_SUFFIX.upper(), exif=meta_data)
 
     return output_file
 
 
-def process_folder(folder_path, output_dir="result", convert_jpg=False, max_size=660, watermark_text=None, keep_lens_only=False):
+def process_folder(folder_path, output_dir="results", max_size=1200, watermark_text=None, strip_meta=False):
     source_dir = Path(folder_path)
     if not source_dir.exists():
         raise FileNotFoundError(f"폴더를 찾을 수 없습니다: {source_dir}")
@@ -75,15 +72,14 @@ def process_folder(folder_path, output_dir="result", convert_jpg=False, max_size
 
     results = []
     for image_file in files:
-        suffix = ".jpg" if convert_jpg else image_file.suffix.lower() or ".jpg"
+        suffix = f'.{DST_SUFFIX}'
         output_path = out_dir / f"{image_file.stem}_processed{suffix}"
         result = process_image(
             image_file,
             output_path=output_path,
-            convert_jpg=convert_jpg,
             max_size=max_size,
             watermark_text=watermark_text,
-            keep_lens_only=keep_lens_only,
+            strip_meta=strip_meta,
         )
         results.append(result)
 

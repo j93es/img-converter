@@ -1,12 +1,5 @@
 from PIL import Image, ImageDraw, ImageFont
 
-# LENS_TAGS = {
-#     0xFDE8: "LensModel",
-#     0xFDE9: "LensMake",
-#     0xFDEA: "LensSerialNumber",
-#     0xC5E0: "LensSpecification",
-# }
-
 
 def _get_exif_value(exif, tag_id):
     value = exif.get(tag_id)
@@ -47,12 +40,7 @@ def _format_exposure_text(image: Image.Image):
 
 def _get_camera_text(image: Image.Image):
     exif = image.getexif()
-    make = _get_exif_value(exif, 0x010F)
     model = _get_exif_value(exif, 0x0110)
-    if make and model:
-        return f"{make} {model}"
-    if make:
-        return str(make)
     if model:
         return str(model)
     return None
@@ -103,7 +91,7 @@ def build_watermark_text(image: Image.Image, user_text: str):
         metadata_parts.append(exposure_text)
 
     if metadata_parts:
-        lines.append(" ".join(metadata_parts))
+        lines.append("\n".join(metadata_parts))
 
     if user_text:
         lines.append(str(user_text))
@@ -127,7 +115,7 @@ def apply_watermark_to_image(
     watermark_text: str,
     position: str = "right",
     font_size: int = 16,
-    color: tuple = (230, 230, 230, 60),
+    color: tuple = (230, 230, 230, 170),
     margin: int = 10,
 ):
     text = build_watermark_text(image, watermark_text)
